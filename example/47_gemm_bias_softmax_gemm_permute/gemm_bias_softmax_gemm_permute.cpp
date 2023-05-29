@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <fstream>
+#include <string>
 #include <iostream>
 #include <vector>
 
@@ -27,16 +29,20 @@ using Acc0ElementOp = ck::tensor_operation::element_wise::PassThrough;
 using B1ElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
+// static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 constexpr static auto MaskingSpec =
     ck::tensor_operation::device::MaskingSpecialization::MaskDisabled;
-static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
+// static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
+// static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
+// static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
+// static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using F16              = ck::half_t;
 using F32              = float;
@@ -56,72 +62,31 @@ static constexpr ck::index_t NumDimN = 1;
 static constexpr ck::index_t NumDimK = 1;
 static constexpr ck::index_t NumDimO = 1;
 
+// static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmPadded  = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
+static constexpr auto TensorDefault = ck::tensor_operation::device::TensorSpecialization::Default;
+
+using ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle;
+using ck::tensor_operation::element_wise::ScaleAdd;
+
 using DeviceOpInstance =
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
-        NumDimG,
-        NumDimM,
-        NumDimN,
-        NumDimK,
-        NumDimO,
-        ADataType,
-        B0DataType,
-        B1DataType,
-        CDataType,
-        Acc0BiasDataType,
-        Acc1BiasDataType,
-        AccDataType,
-        CShuffleDataType,
-        AElementOp,
-        B0ElementOp,
-        C0DEElementOp,
-        B1ElementOp,
-        CElementOp,
-        GemmSpec,
-        TensorSpecA,
-        TensorSpecB0,
-        TensorSpecB1,
-        TensorSpecC,
-        1,
-        256,
-        128,         // MPerBlock
-        128,         // NPerBlock
-        32,          // KPerBlock
-        64,          // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
-        8,           // AK1
-        8,           // BK1
-        2,           // B1K1
-        32,          // MPerXDL
-        32,          // NPerXDL
-        1,           // MXdlPerWave
-        4,           // NXdlPerWave
-        2,           // Gemm1NXdlPerWave
-        S<4, 64, 1>, // ABlockTransfer
-        S<1, 0, 2>,
-        S<1, 0, 2>,
-        2,
-        8,
-        8,
-        true,
-        S<4, 64, 1>, // BBlockTransfer
-        S<1, 0, 2>,
-        S<1, 0, 2>,
-        2,
-        8,
-        8,
-        true,
-        S<16, 16, 1>, // B1BlockTransfer
-        S<0, 2, 1>,
-        S<0, 2, 1>,
-        1,
-        4,
-        2,
-        false,
-        1,              // CShuffleMXdlPerWavePerShuffle
-        2,              // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec>;   // MaskingSpecialization
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    256,   128,    32,    64,    32,   8,   8,    2,   32,   32,     2,     4,     2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    256,   128,    32,   128,    32,   8,   8,    2,   32,   32,     2,     4,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   256,    32,    64,    32,   8,   8,    2,   32,   32,     1,     8,     2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   256,    32,   128,    32,   8,   8,    2,   32,   32,     1,     8,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   128,    64,    64,    32,   8,   8,    2,   32,   32,     1,     4,     2,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,     false,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,      false,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   128,    32,    64,    32,   8,   8,    2,   32,   32,     1,     4,     2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   128,    64,   128,    32,   8,   8,    2,   32,   32,     1,     4,     4,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,     false,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,      false,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   128,    32,   128,    32,   8,   8,    2,   32,   32,     1,     4,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    32,   128,    32,   8,   8,    2,   16,   16,     1,    16,     8,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           8,               S<1, 16, 1,16>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    32,    64,    32,   8,   8,    2,   16,   16,     1,    16,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    64,   128,    32,   8,   8,    2,   16,   16,     1,    16,     8,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           8,               S<1, 16, 1,16>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    64,    64,    32,   8,   8,    2,   16,   16,     1,    16,     4,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // // Padded fallback kernel
+        DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,     GemmPadded, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   128,    64,   128,    32,   8,   8,    2,   32,   32,     1,     4,     4,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,     false,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,      false,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<F16>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,    ScaleAdd, PassThrough, PassThrough,     GemmPadded, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,    64,    32,   128,    32,   8,   8,    2,   32,   32,     1,     2,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // // clang-format on
+;
 
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
@@ -144,6 +109,74 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 AElementOp,
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
+
+template<typename T>
+void FillAsMultipleNormal(Tensor<T>& tensor) {
+    if (tensor.GetNumOfDimension() != 4) {
+        throw std::runtime_error("unspported dimension");
+    }
+
+    std::default_random_engine rng;
+    std::normal_distribution<float> mean{}; // mean ~ N(0, 1^2)
+    std::uniform_real_distribution<float> std_(0.5, 1.5); // std ~ U(0.5, 1.5)
+
+    for(size_t i0=0; i0 < tensor.GetLengths()[0]; i0++) {
+    for(size_t i1=0; i1 < tensor.GetLengths()[1]; i1++) {
+    for(size_t i2=0; i2 < tensor.GetLengths()[2]; i2++) {
+        auto dist_mean = mean(rng);
+        auto dist_std = std_(rng);
+        std::normal_distribution<float> gen(dist_mean, dist_std);
+        for(size_t i3=0; i3 < tensor.GetLengths()[3]; i3++) {
+
+            tensor(i0, i1, i2, i3) = gen(rng);
+        }
+    }}}
+}
+
+template <typename T>
+void FillAsInterleaveMask(Tensor<T>& tensor, int64_t G0, int64_t N);
+
+template <>
+void FillAsInterleaveMask<ck::half_t>(Tensor<ck::half_t>& tensor, int64_t G0, int64_t N) {
+    if (tensor.GetNumOfDimension() != 4) {
+        throw std::runtime_error("unspported dimension");
+    }
+
+    int64_t c = 1;
+    for(size_t i0=0; i0 < tensor.GetLengths()[0]; i0++) {
+    for(size_t i1=0; i1 < tensor.GetLengths()[1]; i1++) {
+    for(size_t i2=0; i2 < tensor.GetLengths()[2]; i2++) {
+    for(size_t i3=0; i3 < tensor.GetLengths()[3]; i3++) {
+        if (c <= G0 * N) {
+            std::cout << "tensor(" << i0 << "," << i1 << "," << i2 << "," << i3 << ")" << " as mask value" << std::endl;
+            uint16_t zero     = 0x0000;  // fp16 literal 0.0h
+            uint16_t neg10000 = 0xF0E2;  // fp16 literal -10000.0h
+            *reinterpret_cast<uint16_t*>(&tensor(i0, i1, i2, i3)) = ((c % (N - 1)) == 0) ? neg10000 : zero;
+        }
+        // else {
+        //     std::cout << "tensor(" << i0 << "," << i1 << "," << i2 << "," << i3 << ")" << " as NaN" << std::endl;
+        //     uint16_t nan = 0x7FFF;
+        //     *reinterpret_cast<uint16_t*>(&tensor(i0, i1, i2, i3)) = nan;
+        // }
+        c += 1;
+    }}}}
+}
+
+template<typename T>
+void Dump(const Tensor<T>& tensor, const std::string& name) {
+    if (tensor.GetNumOfDimension() != 4) {
+        throw std::runtime_error("unspported dimension");
+    }
+
+    std::ofstream of(name, std::ios::binary);
+    for(size_t i0=0; i0 < tensor.GetLengths()[0]; i0++) {
+    for(size_t i1=0; i1 < tensor.GetLengths()[1]; i1++) {
+    for(size_t i2=0; i2 < tensor.GetLengths()[2]; i2++) {
+    for(size_t i3=0; i3 < tensor.GetLengths()[3]; i3++) {
+        of.write(reinterpret_cast<const char*>(&tensor(i0, i1, i2, i3)), sizeof(T));
+    }}}}
+}
+
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
@@ -196,14 +229,17 @@ int main(int argc, char* argv[])
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides{
         M * G1 * K, K, G1 * K, 1}; // A layout [G0, M, G1, K]
+        // M * G1 * K, M * K, K, 1}; // A layout [G0, G1, M, K]
 
     std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1, N, K};
     std::vector<ck::index_t> b0_gs_ns_ks_strides{
         N * G1 * K, K, G1 * K, 1}; // B0 layout [G0, N, G1, K]
+        // N * G1 * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
 
     std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
     std::vector<ck::index_t> b1_gs_os_ns_strides{
         N * G1 * O, O, 1, G1 * O}; // B1 layout [G0, N, G1, O]
+        // G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
 
     std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
     std::vector<ck::index_t> c_gs_ms_os_strides{
@@ -211,7 +247,8 @@ int main(int argc, char* argv[])
 
     // D layout [G0, M, G1, N]
     std::vector<ck::index_t> d0_gs_ms_ns_lengths{G0, G1, M, N};
-    std::vector<ck::index_t> d0_gs_ms_ns_strides{M * G1 * N, N, G1 * N, 1};
+    // std::vector<ck::index_t> d0_gs_ms_ns_strides{G1 * N, N, 0, 1};
+    std::vector<ck::index_t> d0_gs_ms_ns_strides{N, 0, 0, 1};
 
     Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
     Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
@@ -224,6 +261,7 @@ int main(int argc, char* argv[])
     std::cout << "b0_gs_ns_ks: " << b0_gs_ns_ks.mDesc << std::endl;
     std::cout << "b1_gs_os_ns: " << b1_gs_os_ns.mDesc << std::endl;
     std::cout << "c_gs_ms_os: " << c_gs_ms_os_host_result.mDesc << std::endl;
+    std::cout << "d0_gs_ms_ns: " << d0_gs_ms_ns.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -246,6 +284,12 @@ int main(int argc, char* argv[])
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         break;
+    case 4:
+        FillAsMultipleNormal(a_gs_ms_ks);  // Q
+        FillAsMultipleNormal(b0_gs_ns_ks); // K
+        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5}); // V
+        FillAsInterleaveMask(d0_gs_ms_ns, G0, N); // bias as mask
+        break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<2>{});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
@@ -253,11 +297,15 @@ int main(int argc, char* argv[])
         d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
     }
 
+    Dump(a_gs_ms_ks, "a_gs_ms_ks.bin");
+    Dump(b0_gs_ns_ks, "b0_gs_ns_ks.bin");
+    Dump(d0_gs_ms_ns, "d0_gs_ms_ns.bin");
+
     DeviceMem a_device_buf(sizeof(ADataType) * G0 * G1 * M * K);
     DeviceMem b0_device_buf(sizeof(B0DataType) * G0 * G1 * N * K);
     DeviceMem d0_device_buf(sizeof(D0DataType) * G0 * G1 * M * N);
     DeviceMem b1_device_buf(sizeof(B1DataType) * G0 * G1 * O * N);
-    DeviceMem c_device_buf(sizeof(CDataType) * G0 * G1 * M * O);
+    DeviceMem c_device_buf(sizeof(CDataType) * G0 * G1 * M * O );
 
     a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
     b0_device_buf.ToDevice(b0_gs_ns_ks.mData.data());
@@ -306,6 +354,10 @@ int main(int argc, char* argv[])
         throw std::runtime_error("wrong! this device_op instance does not support this problem");
     }
 
+    for (int i=0; i<106; i++) {
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+        (void)ave_time;
+    }
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     ck::index_t BatchCount = G0 * G1;
@@ -390,6 +442,9 @@ int main(int argc, char* argv[])
 
             self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
         });
+
+        Dump(c_gs_ms_os_device_result, "c_gs_ms_os_device_result.bin");
+        Dump(c_gs_ms_os_host_result, "c_gs_ms_os_host_result.bin");
 
         // default absolute error and relative error is 0.001
         double rtol = 1e-3;
