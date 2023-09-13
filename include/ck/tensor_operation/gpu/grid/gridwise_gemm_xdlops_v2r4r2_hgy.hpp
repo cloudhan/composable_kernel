@@ -27,7 +27,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg,
+        kernel_gemm_xdlops_v2r4r2_simplified_hgy(typename GridwiseGemm::Argument karg,
                                              const Block2CTileMap& b2c_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
@@ -55,6 +55,8 @@ template <index_t BlockSize,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          typename MacAElementwiseOperation,
+          typename MacBElementwiseOperation,
           tensor_operation::device::GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
           index_t MPerBlock,
@@ -88,7 +90,7 @@ template <index_t BlockSize,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           PipelineVersion PipelineVer = PipelineVersion::v1,
           typename ComputeType        = FloatC>
-struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
+struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_hgy
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -132,6 +134,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         AElementwiseOperation a_element_op;
         BElementwiseOperation b_element_op;
         CElementwiseOperation c_element_op;
+        MacAElementwiseOperation mac_a_element_op;
+        MacBElementwiseOperation mac_b_element_op;
 
         Argument(const FloatA* p_a_grid_,
                  const FloatB* p_b_grid_,
@@ -149,7 +153,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                  index_t k_batch_,
                  AElementwiseOperation a_element_op_,
                  BElementwiseOperation b_element_op_,
-                 CElementwiseOperation c_element_op_)
+                 CElementwiseOperation c_element_op_,
+                 MacAElementwiseOperation mac_a_element_op_,
+                 MacBElementwiseOperation mac_b_element_op_)
             : p_a_grid(p_a_grid_),
               p_b_grid(p_b_grid_),
               p_c_grid(p_c_grid_),
@@ -166,7 +172,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
               k_batch(k_batch_),
               a_element_op(a_element_op_),
               b_element_op(b_element_op_),
-              c_element_op(c_element_op_)
+              c_element_op(c_element_op_),
+              mac_a_element_op(mac_a_element_op_),
+              mac_b_element_op(mac_b_element_op_)
         {
         }
 
@@ -816,7 +824,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                                b_block_slice_copy_step,
                                                                blockwise_gemm,
                                                                c_thread_buf,
-                                                               num_k_block_main_loop);
+                                                               num_k_block_main_loop,
+                                                               karg.mac_a_element_op,
+                                                               karg.mac_b_element_op);
 
         // output: register to global memory
         {
@@ -1020,7 +1030,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         auto str = std::stringstream();
 
         // clang-format off
-        str << "GemmXdlSplitKCShuffle_"
+        str << "Guangyun's GemmXdlSplitKCShuffle_"
             << getGemmSpecializationString(GemmSpec) << "_"
             << std::string(ALayout::name)[0]
             << std::string(BLayout::name)[0]

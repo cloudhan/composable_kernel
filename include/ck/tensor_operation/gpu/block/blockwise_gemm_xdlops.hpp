@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/warp/xdlops_gemm.hpp"
@@ -308,6 +309,19 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d\n", __FILE__, __LINE__);
+        ck::tensor_operation::element_wise::PassThrough nop{};
+        Run(a_block_buf, b_block_buf, c_thread_buf, nop, nop);
+    }
+
+    template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer, typename MacAElementwiseOperation, typename MacBElementwiseOperation>
+    __device__ void Run(const ABlockBuffer& a_block_buf,
+                        const BBlockBuffer& b_block_buf,
+                        CThreadBuffer& c_thread_buf,
+                        const MacAElementwiseOperation& mac_a_element_op,
+                        const MacBElementwiseOperation& mac_b_element_op) const
+    {
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d\n", __FILE__, __LINE__);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
@@ -321,6 +335,16 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                a_thread_desc_,
                                make_tuple(I0, I0, I0, I0),
                                a_thread_buf);
+            // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d\n", __FILE__, __LINE__);
+            if constexpr(!is_same_v<MacAElementwiseOperation,
+                                    ck::tensor_operation::element_wise::PassThrough>)
+            {
+                // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d: %d\n", __FILE__, __LINE__, a_thread_buf.Size());
+                static_for<0, a_thread_buf.Size(), 1>{}([&](auto i) {
+                    auto v = a_thread_buf(i);
+                    mac_a_element_op(a_thread_buf(i), v);
+                });
+            }
 
             static_for<0, NRepeat, 1>{}([&](auto n0) {
                 // read B
@@ -330,6 +354,16 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    b_thread_desc_,
                                    make_tuple(I0, I0, I0, I0),
                                    b_thread_buf);
+            // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d\n", __FILE__, __LINE__);
+                if constexpr(!is_same_v<MacBElementwiseOperation,
+                                        ck::tensor_operation::element_wise::PassThrough>)
+                {
+                    // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d: %d\n", __FILE__, __LINE__, b_thread_buf.Size());
+                    static_for<0, b_thread_buf.Size(), 1>{}([&](auto i) {
+                        auto v = b_thread_buf(i);
+                        mac_b_element_op(b_thread_buf(i), v);
+                    });
+                }
 
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
                     vector_type<FloatAB, KPack> a_thread_vec;
@@ -915,6 +949,19 @@ struct BlockwiseGemmXdlops_v2
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d\n", __FILE__, __LINE__);
+        ck::tensor_operation::element_wise::PassThrough nop{};
+        Run(a_block_buf, b_block_buf, c_thread_buf, nop, nop);
+    }
+
+    template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer, typename MacAElementwiseOperation, typename MacBElementwiseOperation>
+    __device__ void Run(const ABlockBuffer& a_block_buf,
+                        const BBlockBuffer& b_block_buf,
+                        CThreadBuffer& c_thread_buf,
+                        const MacAElementwiseOperation& mac_a_element_op,
+                        const MacBElementwiseOperation& mac_b_element_op) const
+    {
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d\n", __FILE__, __LINE__);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
@@ -929,6 +976,14 @@ struct BlockwiseGemmXdlops_v2
                                    a_thread_desc_,
                                    make_tuple(I0, I0, I0, I0),
                                    a_thread_buf);
+                if constexpr(!is_same_v<MacAElementwiseOperation,
+                                        ck::tensor_operation::element_wise::PassThrough>)
+                {
+                    static_for<0, a_thread_buf.Size(), 1>{}([&](auto i) {
+                        auto v = a_thread_buf(i);
+                        mac_a_element_op(a_thread_buf(i), v);
+                    });
+                }
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     // read B
@@ -938,6 +993,15 @@ struct BlockwiseGemmXdlops_v2
                                        b_thread_desc_,
                                        make_tuple(I0, I0, I0, I0),
                                        b_thread_buf);
+                    if constexpr(!is_same_v<MacBElementwiseOperation,
+                                            ck::tensor_operation::element_wise::PassThrough>)
+                    {
+                        static_for<0, b_thread_buf.Size(), 1>{}([&](auto i) {
+                            auto v = b_thread_buf(i);
+                            mac_b_element_op(b_thread_buf(i), v);
+                        });
+                    }
+
                     vector_type<FloatAB, KPack> a_thread_vec;
                     vector_type<FloatAB, KPack> b_thread_vec;
 

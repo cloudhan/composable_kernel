@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 
 set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
-project(composable_kernel VERSION ${version})
+project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -145,27 +145,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
-## OpenMP
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	# workaround issue hipcc in rocm3.5 cannot find openmp
-	set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
-	set(OpenMP_CXX_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
-	set(OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
-	set(OpenMP_libomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-	set(OpenMP_libgomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-	set(OpenMP_libiomp5_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-else()
-	find_package(OpenMP REQUIRED)
-endif()
-
-message("OpenMP_CXX_LIB_NAMES: ${OpenMP_CXX_LIB_NAMES}")
-message("OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
-message("OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
-message("OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
-
-link_libraries(${OpenMP_gomp_LIBRARY})
-link_libraries(${OpenMP_pthread_LIBRARY})
-
 ## HIP
 find_package(HIP REQUIRED)
 # Override HIP version in config.h, if necessary.
@@ -187,8 +166,6 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
     message(STATUS "CK_HIP_VERSION_PATCH overriden with ${CK_OVERRIDE_HIP_VERSION_PATCH}")
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
-link_libraries(hip::device)
-add_compile_definitions(__HIP_PLATFORM_HCC__=1)
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -457,11 +434,3 @@ install(FILES
 
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
-
-rocm_create_package(
-    NAME composablekernel
-    DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
-    MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
-    LDCONFIG
-    HEADER_ONLY
-)

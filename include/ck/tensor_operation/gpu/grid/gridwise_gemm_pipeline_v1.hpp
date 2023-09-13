@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 
@@ -56,6 +57,64 @@ struct GridwiseGemmPipeline_v1<1>
                                CThreadBuffer& c_thread_buf,
                                index_t num_loop)
     {
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d\n", __FILE__, __LINE__);
+        auto nop = ck::tensor_operation::element_wise::PassThrough{};
+        Run<HasMainLoop>(a_grid_desc,
+                         a_block_desc,
+                         a_blockwise_copy,
+                         a_grid_buf,
+                         a_block_buf,
+                         a_block_copy_step,
+                         b_grid_desc,
+                         b_block_desc,
+                         b_blockwise_copy,
+                         b_grid_buf,
+                         b_block_buf,
+                         b_block_copy_step,
+                         blockwise_gemm,
+                         c_thread_buf,
+                         num_loop,
+                         nop,
+                         nop);
+
+    }
+
+    template <bool HasMainLoop,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename BlockwiseGemm,
+              typename CThreadBuffer,
+              typename MacAElementwiseOperation,
+              typename MacBElementwiseOperation>
+    __device__ static void Run(const AGridDesc& a_grid_desc,
+                               const ABlockDesc& a_block_desc,
+                               ABlockTransfer& a_blockwise_copy,
+                               const AGridBuffer& a_grid_buf,
+                               ABlockBuffer& a_block_buf,
+                               const ABlockTransferStep& a_block_copy_step,
+                               const BGridDesc& b_grid_desc,
+                               const BBlockDesc& b_block_desc,
+                               BBlockTransfer& b_blockwise_copy,
+                               const BGridBuffer& b_grid_buf,
+                               BBlockBuffer& b_block_buf,
+                               const BBlockTransferStep& b_block_copy_step,
+                               const BlockwiseGemm& blockwise_gemm,
+                               CThreadBuffer& c_thread_buf,
+                               index_t num_loop,
+                               const MacAElementwiseOperation& mac_a_element_op,
+                               const MacBElementwiseOperation& mac_b_element_op)
+    {
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0&& threadIdx.y == 0&& threadIdx.z == 0) printf("%s:%d\n", __FILE__, __LINE__);
         // preload data into LDS
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
@@ -82,7 +141,7 @@ struct GridwiseGemmPipeline_v1<1>
 
                 b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf, mac_a_element_op, mac_b_element_op);
 
                 block_sync_lds();
 
@@ -100,7 +159,7 @@ struct GridwiseGemmPipeline_v1<1>
         {
             block_sync_lds();
 
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf, mac_a_element_op, mac_b_element_op);
         }
     }
 };

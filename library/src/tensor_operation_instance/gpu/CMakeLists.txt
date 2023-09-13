@@ -1,7 +1,13 @@
 function(add_instance_library INSTANCE_NAME)
     message("adding instance ${INSTANCE_NAME}")
+    set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
     add_library(${INSTANCE_NAME} OBJECT ${ARGN})
+    # Always disable debug symbol and C debug assert due to
+    # - Linker error: ... relocation truncated to fit ..., caused by object files to be linked are too huge.
+    # - https://github.com/ROCmSoftwarePlatform/composable_kernel/issues/622
+    target_compile_options(${INSTANCE_NAME} PRIVATE -g0 -DNDEBUG)
     target_compile_features(${INSTANCE_NAME} PUBLIC)
+    target_compile_definitions(${INSTANCE_NAME} PRIVATE "__HIP_PLATFORM_AMD__=1" "__HIP_PLATFORM_HCC__=1")
     set_target_properties(${INSTANCE_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
     clang_tidy_check(${INSTANCE_NAME})
 endfunction(add_instance_library INSTANCE_NAME)

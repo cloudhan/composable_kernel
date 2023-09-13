@@ -20,8 +20,10 @@ template <typename ALayout,
           typename CDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
-struct DeviceGemmSplitK : public BaseOperator
+          typename CElementwiseOperation,
+          typename MacAElementwiseOperation,
+          typename MacBElementwiseOperation>
+struct DeviceGemmSplitKHgy : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                               const void* p_b,
@@ -35,7 +37,9 @@ struct DeviceGemmSplitK : public BaseOperator
                                                               AElementwiseOperation a_element_op,
                                                               BElementwiseOperation b_element_op,
                                                               CElementwiseOperation c_element_op,
-                                                              ck::index_t KBatch) = 0;
+                                                              ck::index_t KBatch,
+                                                              MacAElementwiseOperation mac_a_element_op,
+                                                              MacBElementwiseOperation mac_b_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
@@ -51,7 +55,7 @@ template <typename ALayout,
           typename CElementwiseOperation,
           typename MacAElementwiseOperation,
           typename MacBElementwiseOperation>
-using DeviceGemmSplitKPtr = std::unique_ptr<DeviceGemmSplitK<ALayout,
+using DeviceGemmSplitKPtrHgy = std::unique_ptr<DeviceGemmSplitKHgy<ALayout,
                                                              BLayout,
                                                              CLayout,
                                                              ADataType,
@@ -59,7 +63,9 @@ using DeviceGemmSplitKPtr = std::unique_ptr<DeviceGemmSplitK<ALayout,
                                                              CDataType,
                                                              AElementwiseOperation,
                                                              BElementwiseOperation,
-                                                             CElementwiseOperation>>;
+                                                             CElementwiseOperation,
+                                                             MacAElementwiseOperation,
+                                                             MacBElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
