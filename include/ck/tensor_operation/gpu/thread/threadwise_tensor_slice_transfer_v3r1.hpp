@@ -341,12 +341,83 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             });
         }
 
-        static_ford<SliceLengths>{}([&](auto idx) {
-            // apply the src elementwise op and convert to DstData under the hood if needed
-            DstData dst_v;
-            src_element_op_(dst_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
-            dst_thread_scratch_(idx) = dst_v;
-        });
+        if constexpr(SrcScalarPerVector % 4 == 0 && std::is_invocable_r_v<void,
+                                                                            SrcElementwiseOperation,
+                                                                            DstData&,
+                                                                            DstData&,
+                                                                            DstData&,
+                                                                            DstData&,
+                                                                            const SrcData&,
+                                                                            const SrcData&,
+                                                                            const SrcData&,
+                                                                            const SrcData&>)
+        {
+            constexpr const int ElementwiseOpScalarPerVector = 4;
+
+            constexpr auto scalar_per_access = generate_sequence(
+                detail::lambda_scalar_per_access_for_src_and_dst<SrcVectorDim,
+                                                                 ElementwiseOpScalarPerVector,
+                                                                 SrcVectorDim,
+                                                                 ElementwiseOpScalarPerVector>{},
+                Number<nDim>{});
+
+            constexpr auto step_in_vector = generate_sequence(
+                detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
+            constexpr auto step_not_in_vector = Number<1>{} - step_in_vector;
+
+            constexpr auto access_lengths = SliceLengths{} / scalar_per_access;
+
+            static_ford<decltype(access_lengths)>{}([&](auto access_idx) {
+                constexpr auto data_idx = access_idx * step_not_in_vector + access_idx * step_in_vector * scalar_per_access;
+                src_element_op_(
+                    dst_thread_scratch_(data_idx + Number<0>{} * step_in_vector),
+                    dst_thread_scratch_(data_idx + Number<1>{} * step_in_vector),
+                    dst_thread_scratch_(data_idx + Number<2>{} * step_in_vector),
+                    dst_thread_scratch_(data_idx + Number<3>{} * step_in_vector),
+                    src_thread_scratch_tuple_[thread_scratch_id][data_idx + Number<0>{} * step_in_vector],
+                    src_thread_scratch_tuple_[thread_scratch_id][data_idx + Number<1>{} * step_in_vector],
+                    src_thread_scratch_tuple_[thread_scratch_id][data_idx + Number<2>{} * step_in_vector],
+                    src_thread_scratch_tuple_[thread_scratch_id][data_idx + Number<3>{} * step_in_vector]);
+            });
+        }else if constexpr(SrcScalarPerVector % 2 == 0 && std::is_invocable_r_v<void,
+                                                                            SrcElementwiseOperation,
+                                                                            DstData&,
+                                                                            DstData&,
+                                                                            const SrcData&,
+                                                                            const SrcData&>)
+        {
+            constexpr const int ElementwiseOpScalarPerVector = 2;
+
+            constexpr auto scalar_per_access = generate_sequence(
+                detail::lambda_scalar_per_access_for_src_and_dst<SrcVectorDim,
+                                                                 ElementwiseOpScalarPerVector,
+                                                                 SrcVectorDim,
+                                                                 ElementwiseOpScalarPerVector>{},
+                Number<nDim>{});
+
+            constexpr auto step_in_vector = generate_sequence(
+                detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
+            constexpr auto step_not_in_vector = Number<1>{} - step_in_vector;
+
+            constexpr auto access_lengths = SliceLengths{} / scalar_per_access;
+
+            static_ford<decltype(access_lengths)>{}([&](auto access_idx) {
+                constexpr auto data_idx = access_idx * step_not_in_vector + access_idx * step_in_vector * scalar_per_access;
+                src_element_op_(
+                    dst_thread_scratch_(data_idx + Number<0>{} * step_in_vector),
+                    dst_thread_scratch_(data_idx + Number<1>{} * step_in_vector),
+                    src_thread_scratch_tuple_[thread_scratch_id][data_idx + Number<0>{} * step_in_vector],
+                    src_thread_scratch_tuple_[thread_scratch_id][data_idx + Number<1>{} * step_in_vector]);
+            });
+        }
+        else
+        {
+            static_ford<SliceLengths>{}([&](auto idx) {
+                DstData dst_v;
+                src_element_op_(dst_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
+                dst_thread_scratch_(idx) = dst_v;
+            });
+        }
 #endif
     }
 
@@ -453,6 +524,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             auto dst_vector_container = dst_vector_type{
                 dst_thread_scratch_.template GetAsType<dst_vector_t>(dst_data_idx_seq)};
 
+            // TODO:
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
                 DstData dst_v;
 
